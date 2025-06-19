@@ -13,7 +13,7 @@ object JDBCConnector {
   }
 }
 
-case class JDBCConfig(source: IJDBCSource, url: String, userName: String, userPwd: String, table: String, timestampColumn: String, batchSize: Int, numBatches: Int)
+case class JDBCConfig(source: IJDBCSource, url: String, userName: String, userPwd: String, table: String, timestampColumn: String, batchSize: Int, numBatches: Int, filterCondition: Option[String] = None)
 
 class JDBCSourceConnector extends ISourceConnector {
 
@@ -23,21 +23,24 @@ class JDBCSourceConnector extends ISourceConnector {
 
   override def process(spark: SparkSession, ctx: ConnectorContext, config: Config, metricFn: (String, Long) => Unit): Dataset[Row] = {
     val jdbcConfig = getJDBCConfig(config)
-    val recordsCount = countNewRecords(spark, ctx, jdbcConfig)
-    if (recordsCount > 0) {
-      val batches = Math.min((recordsCount.toDouble / jdbcConfig.batchSize).ceil, jdbcConfig.numBatches).toInt
-      fetchRecords(spark, ctx, jdbcConfig, batches)
-    } else {
-      spark.emptyDataFrame
-    }
+//    val recordsCount = countNewRecords(spark, ctx, jdbcConfig)
+//    if (recordsCount > 0) {
+    fetchRecords(spark, ctx, jdbcConfig, jdbcConfig.numBatches)
+//    } else {
+//      spark.emptyDataFrame
+//    }
   }
 
   private def getDriver(dbType: String): IJDBCSource = {
-    dbType match {
+    println(s"[JDBCSourceConnector] Getting driver for database type: $dbType")
+    val driver = dbType match {
       case "postgresql" => new PostgresSource
       case "mysql" => new MySQLSource
-      case _ => throw new Exception("")
+      case "oracle" => new OracleSource
+      case _ => throw new Exception(s"Unsupported database type: $dbType")
     }
+    println(s"[JDBCSourceConnector] Driver created: ${driver.getClass.getSimpleName}")
+    driver
   }
 
   private def fetchRecords(spark: SparkSession, ctx: ConnectorContext, jdbcConfig: JDBCConfig, batches: Int): DataFrame = {
@@ -52,12 +55,28 @@ class JDBCSourceConnector extends ISourceConnector {
   }
 
   private def getJDBCConfig(config: Config): JDBCConfig = {
-    val jdbcUrl = s"jdbc:${config.getString("source_database_type")}://${config.getString("source_database_host")}:${config.getString("source_database_port")}/${config.getString("source_database_name")}"
+    val dbType = config.getString("source_database_type")
+    val jdbcUrl = dbType match {
+      case "oracle" =>
+        s"jdbc:$dbType:thin:@//${config.getString("source_database_host")}:${config.getString("source_database_port")}/${config.getString("source_database_name")}"
+      case "mysql" =>
+        s"jdbc:$dbType://${config.getString("source_database_host")}:${config.getString("source_database_port")}/${config.getString("source_database_name")}"
+      case "postgresql" =>
+        s"jdbc:$dbType://${config.getString("source_database_host")}:${config.getString("source_database_port")}/${config.getString("source_database_name")}"
+      case other =>
+        throw new IllegalArgumentException(s"Unsupported database type: $other")
+    }
+    printf("Database connection url: " + jdbcUrl)
+    
+    // Read filter condition parameter
+    val filterCondition = if (config.hasPath("source_table_filter_condition")) Some(config.getString("source_table_filter_condition")) else None
+    
     JDBCConfig(
       source = getDriver(config.getString("source_database_type")), url = jdbcUrl,
       userName = config.getString("source_database_username"), userPwd = config.getString("source_database_pwd"),
       table = config.getString("source_table"), timestampColumn = config.getString("source_timestamp_column"),
-      batchSize = config.getInt("source_batch_size"), numBatches = config.getInt("source_max_batches")
+      batchSize = config.getInt("source_batch_size"), numBatches = config.getInt("source_max_batches"),
+      filterCondition = filterCondition
     )
   }
 
@@ -73,17 +92,17 @@ class JDBCSourceConnector extends ISourceConnector {
 
   private def countNewRecords(spark: SparkSession, ctx: ConnectorContext, jdbcConfig: JDBCConfig): Long = {
     val countQuery = jdbcConfig.source.countQuery(jdbcConfig.table, jdbcConfig.timestampColumn, ctx.state.getState[AnyRef]("lastRecordTimestamp"))
-    val df = readData(spark, jdbcConfig, countQuery)
+    val df = readData(spark, jdbcConfig, countQuery).select(col("count").cast("long").alias("count"))
     df.head().getAs[Long]("count")
   }
 
   private def fetchBatch(spark: SparkSession, ctx: ConnectorContext, jdbcConfig: JDBCConfig, offset: Int): DataFrame = {
-    val selectQuery = jdbcConfig.source.batchQuery(jdbcConfig.table, jdbcConfig.timestampColumn, offset, jdbcConfig.batchSize, ctx.state.getState[AnyRef]("lastRecordTimestamp"))
+    val selectQuery = jdbcConfig.source.batchQuery(jdbcConfig.table, jdbcConfig.timestampColumn, offset, jdbcConfig.batchSize, ctx.state.getState[AnyRef]("lastRecordTimestamp"), jdbcConfig.filterCondition)
     readData(spark, jdbcConfig, selectQuery)
   }
 
   private def getAllTimestampRecords(spark: SparkSession, ctx: ConnectorContext, jdbcConfig: JDBCConfig, lastTimestamp: Any): DataFrame = {
-    val selectQuery = jdbcConfig.source.timeStampQuery(jdbcConfig.table, jdbcConfig.timestampColumn, lastTimestamp)
+    val selectQuery = jdbcConfig.source.timeStampQuery(jdbcConfig.table, jdbcConfig.timestampColumn, lastTimestamp, jdbcConfig.filterCondition)
     readData(spark, jdbcConfig, selectQuery)
   }
 }
