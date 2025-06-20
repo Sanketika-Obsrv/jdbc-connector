@@ -26,16 +26,16 @@ trait IJDBCSource {
 
     query.append(filters.mkString(" AND "))
 
-    val batchClause =  s"ORDER BY $timestampColumn LIMIT $batchSize OFFSET $offset"
+    val batchClause = s"ORDER BY $timestampColumn LIMIT $batchSize OFFSET $offset"
 
-    println("Query: " +  s"$query $batchClause")
+    println("Query: " + s"$query $batchClause")
     s"$query $batchClause"
   }
 
    def timeStampQuery(table: String, timestampColumn: String, timestamp: Any, filterCondition: Option[String] = None): String = {
     val query = new StringBuilder
     query.append(s"SELECT * FROM $table")
-    if (filterCondition.isDefined) {
+    if (filterCondition.isDefined || timestamp != null) {
       query.append(" WHERE ")
     }
     val filters = scala.collection.mutable.ListBuffer[String]()
