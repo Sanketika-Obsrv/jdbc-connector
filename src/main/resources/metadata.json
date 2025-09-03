@@ -27,6 +27,12 @@
             "name": "MySQL",
             "description": "The MySQL Connector is used to move data from any MySQL Table to Obsrv",
             "icon": "mysql.svg"
+        },
+        {
+            "id": "oracle-connector",
+            "name": "Oracle",
+            "description": "The Oracle Connector is used to move data from any Oracle Table to Obsrv",
+            "icon": "oracle.svg"
         }
     ]
 }
