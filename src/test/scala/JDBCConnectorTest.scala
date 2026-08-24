@@ -10,7 +10,7 @@ import org.sunbird.obsrv.connector.source._
 import com.typesafe.config.{Config, ConfigFactory, ConfigValueFactory}
 import org.sunbird.obsrv.job.util._
 import scala.concurrent.duration._
-import net.manub.embeddedkafka.Codecs._
+import io.github.embeddedkafka.Codecs._
 import java.time.Duration
 import java.util.{Properties, Collections}
 import org.scalatest.matchers.should.Matchers
