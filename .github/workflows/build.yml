@@ -50,7 +50,9 @@ jobs:
 
     - name: Rename distribution tarball
       run: |
-        cp target/jdbc-connector-1.0.0-distribution.tar.gz jdbc-connector.tar.gz
+        VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+        echo "Detected version: $VERSION"
+        cp target/jdbc-connector-${VERSION}-distribution.tar.gz jdbc-connector.tar.gz
 
     - name: Upload Release Asset
       uses: softprops/action-gh-release@v2
