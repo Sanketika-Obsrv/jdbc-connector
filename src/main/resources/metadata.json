@@ -3,7 +3,7 @@
     "metadata": {
         "id": "jdbc-connector",
         "name": "JDBC Connector",
-        "version": "2.2.0",
+        "version": "1.0.0",
         "tenant": "multiple",
         "type": "source",
         "category": "batch",
@@ -13,7 +13,7 @@
         "licence": "MIT",
         "owner": "Sunbird",
         "main_class": "org.sunbird.obsrv.connector.JDBCConnector",
-        "main_program": "jdbc-connector-2.2.0.jar"
+        "main_program": "jdbc-connector-1.0.0.jar"
     },
     "connectors": [
         {
